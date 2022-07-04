@@ -1,3 +1,8 @@
+*.tdo
+
+# Resources
+res/
+
 # System files
 .DS_Store
 
