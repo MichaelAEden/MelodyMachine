@@ -11,6 +11,7 @@ _TICKS_PER_SONG = _TICKS_PER_MEASURE * _MEASURES_PER_SONG
 _NOTE_SCALE = 96
 
 _NOTE_VOLUME_THRESHOLD = 0.8
+_DEFAULT_CHANNEL_VOLUME = 127
 
 _TICKS_PER_SECOND = 60
 
@@ -27,18 +28,13 @@ def to_numpy(path: str):
 
     playback_ticks = 0
     beats_per_measure = None
-    time_signature_received = False
     channel_volumes = {}
     data = np.zeros((_NOTE_SCALE, _TICKS_PER_SONG))
 
     for msg in mido.merge_tracks(mid.tracks):
         # Only consider time signature, but ignore tempo.
-        if msg.type == 'time_signature':
-            if time_signature_received:
-                logging.warning('Multiple Time Signature messages received.')
-            elif beats_per_measure is None:
-                beats_per_measure = msg.numerator
-            time_signature_received = True
+        if msg.type == 'time_signature' and beats_per_measure is None:
+            beats_per_measure = msg.numerator
             continue
 
         if msg.time > 0:
@@ -52,14 +48,15 @@ def to_numpy(path: str):
 
         if msg.type == 'note_on':
             if msg.channel not in channel_volumes:
-                logging.warning(f'Unknown volume for channel: {msg.channel}.')
-            else:
-                note_volume = (msg.velocity / 127) * (channel_volumes[msg.channel] / 127)
-                if note_volume < _NOTE_VOLUME_THRESHOLD:
-                    continue
+                logging.warning(f'Unknown volume for channel: {msg.channel}, defaulting to {_DEFAULT_CHANNEL_VOLUME}.')
+                channel_volumes[msg.channel] = _DEFAULT_CHANNEL_VOLUME
+
+            note_volume = (msg.velocity / 127) * (channel_volumes[msg.channel] / 127)
+            if note_volume < _NOTE_VOLUME_THRESHOLD:
+                continue
 
             if beats_per_measure is None:
-                logging.warning('Unknown time signature, defaulting to 4/4 time.')
+                logging.warning('Unknown time signature, defaulting to 4/4.')
                 beats_per_measure = 4
 
             ticks_per_measure = mid.ticks_per_beat * beats_per_measure
@@ -69,7 +66,7 @@ def to_numpy(path: str):
 
             note_index = msg.note
             if note_index >= _NOTE_SCALE:
-                logging.warning('Ignoring note outside accepted range.')
+                logging.warning(f'Ignoring note: {note_index} >= {_NOTE_SCALE}.')
                 continue
 
             data[note_index, time_index] = 1
