@@ -12,6 +12,8 @@ _NOTE_SCALE = 96
 
 _TICKS_PER_SECOND = 60
 
+_CHANNEL_PERCUSSION = 9  # 10 by MIDI standard but Mido uses 0-indexing.
+
 
 def to_numpy(path: str):
     mid = mido.MidiFile(path)
@@ -37,6 +39,9 @@ def to_numpy(path: str):
 
         if msg.time > 0:
             playback_ticks += msg.time
+
+        if hasattr(msg, 'channel') and msg.channel == _CHANNEL_PERCUSSION:
+            continue
 
         if msg.type == 'note_on':
             if beats_per_measure is None:
