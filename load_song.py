@@ -10,9 +10,12 @@ _TICKS_PER_MEASURE = 96
 _TICKS_PER_SONG = _TICKS_PER_MEASURE * _MEASURES_PER_SONG
 _NOTE_SCALE = 96
 
+_NOTE_VOLUME_THRESHOLD = 0.8
+
 _TICKS_PER_SECOND = 60
 
 _CHANNEL_PERCUSSION = 9  # 10 by MIDI standard but Mido uses 0-indexing.
+_CONTROL_VOLUME = 7
 
 
 def to_numpy(path: str):
@@ -25,6 +28,7 @@ def to_numpy(path: str):
     playback_ticks = 0
     beats_per_measure = None
     time_signature_received = False
+    channel_volumes = {}
     data = np.zeros((_NOTE_SCALE, _TICKS_PER_SONG))
 
     for msg in mido.merge_tracks(mid.tracks):
@@ -43,7 +47,17 @@ def to_numpy(path: str):
         if hasattr(msg, 'channel') and msg.channel == _CHANNEL_PERCUSSION:
             continue
 
+        if msg.type == 'control_change' and msg.control == _CONTROL_VOLUME:
+            channel_volumes[msg.channel] = msg.value
+
         if msg.type == 'note_on':
+            if msg.channel not in channel_volumes:
+                logging.warning(f'Unknown volume for channel: {msg.channel}.')
+            else:
+                note_volume = (msg.velocity / 127) * (channel_volumes[msg.channel] / 127)
+                if note_volume < _NOTE_VOLUME_THRESHOLD:
+                    continue
+
             if beats_per_measure is None:
                 logging.warning('Unknown time signature, defaulting to 4/4 time.')
                 beats_per_measure = 4
