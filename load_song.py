@@ -80,6 +80,9 @@ def to_numpy(path: str):
 def play_numpy(data: np.ndarray):
     # TODO: send Note Off messages.
     with mido.open_output(autoreset=True) as port:
+        msg = mido.Message('program_change', program=0)
+        port.send(msg)
+
         notes = np.transpose(np.nonzero(data.T))
         start_time = time.time()
 
