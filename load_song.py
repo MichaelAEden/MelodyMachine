@@ -1,5 +1,6 @@
 import logging
 import time
+from collections import defaultdict
 
 import mido
 import numpy as np
@@ -10,13 +11,35 @@ _TICKS_PER_MEASURE = 96
 _TICKS_PER_SONG = _TICKS_PER_MEASURE * _MEASURES_PER_SONG
 _NOTE_SCALE = 96
 
-_NOTE_VOLUME_THRESHOLD = 0.8
+_NOTE_VOLUME_PERCENTILE_THRESHOLD = 75  # Only allow notes with volume in top percentile.
 _DEFAULT_CHANNEL_VOLUME = 127
 
 _TICKS_PER_SECOND = 60
 
 _CHANNEL_PERCUSSION = 9  # 10 by MIDI standard but Mido uses 0-indexing.
 _CONTROL_VOLUME = 7
+
+
+def get_note_volume(velocity: int, channel_volume: int) -> float:
+    return (velocity / 127) * (channel_volume / 127)
+
+
+def get_volume_threshold(mid: mido.MidiFile) -> float:
+    note_volumes = []
+    channel_volumes = defaultdict(lambda: _DEFAULT_CHANNEL_VOLUME)
+    for track in mid.tracks:
+        for msg in track:
+            if hasattr(msg, 'channel') and msg.channel == _CHANNEL_PERCUSSION:
+                continue
+
+            if msg.type == 'control_change' and msg.control == _CONTROL_VOLUME:
+                channel_volumes[msg.channel] = msg.value
+
+            if msg.type == 'note_on':
+                note_volume = get_note_volume(msg.velocity, channel_volumes[msg.channel])
+                note_volumes.append(note_volume)
+
+    return np.percentile(note_volumes, _NOTE_VOLUME_PERCENTILE_THRESHOLD)
 
 
 def to_numpy(path: str):
@@ -30,6 +53,8 @@ def to_numpy(path: str):
     beats_per_measure = None
     channel_volumes = {}
     data = np.zeros((_NOTE_SCALE, _TICKS_PER_SONG))
+
+    volume_threshold = get_volume_threshold(mid)
 
     for msg in mido.merge_tracks(mid.tracks):
         # Only consider time signature, but ignore tempo.
@@ -51,8 +76,8 @@ def to_numpy(path: str):
                 logging.warning(f'Unknown volume for channel: {msg.channel}, defaulting to {_DEFAULT_CHANNEL_VOLUME}.')
                 channel_volumes[msg.channel] = _DEFAULT_CHANNEL_VOLUME
 
-            note_volume = (msg.velocity / 127) * (channel_volumes[msg.channel] / 127)
-            if note_volume < _NOTE_VOLUME_THRESHOLD:
+            note_volume = get_note_volume(msg.velocity, channel_volumes[msg.channel])
+            if note_volume < volume_threshold:
                 continue
 
             if beats_per_measure is None:
