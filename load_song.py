@@ -9,7 +9,9 @@ import numpy as np
 _MEASURES_PER_SONG = 16
 _TICKS_PER_MEASURE = 96
 _TICKS_PER_SONG = _TICKS_PER_MEASURE * _MEASURES_PER_SONG
-_NOTE_SCALE = 96
+NOTE_MIN = 20  # Inclusive
+NOTE_MAX = 96  # Not inclusive
+NOTE_RANGE = NOTE_MAX - NOTE_MIN
 
 _NOTE_VOLUME_PERCENTILE_THRESHOLD = 75  # Only allow notes with volume in top percentile.
 _DEFAULT_CHANNEL_VOLUME = 127
@@ -52,7 +54,7 @@ def to_numpy(path: str):
     playback_ticks = 0
     beats_per_measure = None
     channel_volumes = {}
-    data = np.zeros((_NOTE_SCALE, _TICKS_PER_SONG))
+    data = np.zeros((NOTE_RANGE, _TICKS_PER_SONG))
 
     volume_threshold = get_volume_threshold(mid)
 
@@ -90,11 +92,15 @@ def to_numpy(path: str):
                 break
 
             note_index = msg.note
-            if note_index >= _NOTE_SCALE:
-                logging.warning(f'Ignoring note: {note_index} >= {_NOTE_SCALE}.')
+            if note_index < NOTE_MIN:
+                logging.warning(f'Ignoring note in lower range: {note_index} < {NOTE_MIN}.')
                 continue
 
-            data[note_index, time_index] = 1
+            if note_index >= NOTE_MAX:
+                logging.warning(f'Ignoring note in upper range: {note_index} >= {NOTE_MAX}.')
+                continue
+
+            data[note_index - NOTE_MIN, time_index] = 1
 
     return data
 
@@ -114,6 +120,6 @@ def play_numpy(data: np.ndarray):
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
-            msg = mido.Message('note_on', note=note_index)
+            msg = mido.Message('note_on', note=note_index + NOTE_MIN)
             port.send(msg)
 
