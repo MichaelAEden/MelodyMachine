@@ -55,7 +55,7 @@ def to_numpy(mid: mido.MidiFile):
 
     volume_threshold = get_volume_threshold(mid)
 
-    for msg in mido.merge_tracks(mid.tracks):
+    for msg in utils.merge_tracks(mid):
         # Only consider time signature, but ignore tempo.
         if msg.type == 'time_signature' and beats_per_measure is None:
             beats_per_measure = msg.numerator
