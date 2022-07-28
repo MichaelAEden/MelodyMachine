@@ -6,20 +6,20 @@ import mido
 import numpy as np
 
 
-_MEASURES_PER_SONG = 16
-_TICKS_PER_MEASURE = 96
-_TICKS_PER_SONG = _TICKS_PER_MEASURE * _MEASURES_PER_SONG
+MEASURES_PER_SONG = 16
+TICKS_PER_MEASURE = 96
+TICKS_PER_SONG = TICKS_PER_MEASURE * MEASURES_PER_SONG
 NOTE_MIN = 20  # Inclusive
 NOTE_MAX = 96  # Not inclusive
 NOTE_RANGE = NOTE_MAX - NOTE_MIN
 
-_NOTE_VOLUME_PERCENTILE_THRESHOLD = 75  # Only allow notes with volume in top percentile.
-_DEFAULT_CHANNEL_VOLUME = 127
+NOTE_VOLUME_PERCENTILE_THRESHOLD = 75  # Only allow notes with volume in top percentile.
+DEFAULT_CHANNEL_VOLUME = 127
 
-_TICKS_PER_SECOND = 60
+TICKS_PER_SECOND = 60  # Only used in playback.
 
-_CHANNEL_PERCUSSION = 9  # 10 by MIDI standard but Mido uses 0-indexing.
-_CONTROL_VOLUME = 7
+CHANNEL_PERCUSSION = 9  # 10 by MIDI standard but Mido uses 0-indexing.
+CONTROL_VOLUME = 7
 
 
 def get_note_volume(velocity: int, channel_volume: int) -> float:
@@ -28,20 +28,20 @@ def get_note_volume(velocity: int, channel_volume: int) -> float:
 
 def get_volume_threshold(mid: mido.MidiFile) -> float:
     note_volumes = []
-    channel_volumes = defaultdict(lambda: _DEFAULT_CHANNEL_VOLUME)
+    channel_volumes = defaultdict(lambda: DEFAULT_CHANNEL_VOLUME)
     for track in mid.tracks:
         for msg in track:
-            if hasattr(msg, 'channel') and msg.channel == _CHANNEL_PERCUSSION:
+            if hasattr(msg, 'channel') and msg.channel == CHANNEL_PERCUSSION:
                 continue
 
-            if msg.type == 'control_change' and msg.control == _CONTROL_VOLUME:
+            if msg.type == 'control_change' and msg.control == CONTROL_VOLUME:
                 channel_volumes[msg.channel] = msg.value
 
             if msg.type == 'note_on':
                 note_volume = get_note_volume(msg.velocity, channel_volumes[msg.channel])
                 note_volumes.append(note_volume)
 
-    return np.percentile(note_volumes, _NOTE_VOLUME_PERCENTILE_THRESHOLD)
+    return np.percentile(note_volumes, NOTE_VOLUME_PERCENTILE_THRESHOLD)
 
 
 def to_numpy(path: str):
@@ -54,7 +54,7 @@ def to_numpy(path: str):
     playback_ticks = 0
     beats_per_measure = None
     channel_volumes = {}
-    data = np.zeros((NOTE_RANGE, _TICKS_PER_SONG))
+    data = np.zeros((NOTE_RANGE, TICKS_PER_SONG))
 
     volume_threshold = get_volume_threshold(mid)
 
@@ -67,16 +67,16 @@ def to_numpy(path: str):
         if msg.time > 0:
             playback_ticks += msg.time
 
-        if hasattr(msg, 'channel') and msg.channel == _CHANNEL_PERCUSSION:
+        if hasattr(msg, 'channel') and msg.channel == CHANNEL_PERCUSSION:
             continue
 
-        if msg.type == 'control_change' and msg.control == _CONTROL_VOLUME:
+        if msg.type == 'control_change' and msg.control == CONTROL_VOLUME:
             channel_volumes[msg.channel] = msg.value
 
         if msg.type == 'note_on':
             if msg.channel not in channel_volumes:
-                logging.warning(f'Unknown volume for channel: {msg.channel}, defaulting to {_DEFAULT_CHANNEL_VOLUME}.')
-                channel_volumes[msg.channel] = _DEFAULT_CHANNEL_VOLUME
+                logging.warning(f'Unknown volume for channel: {msg.channel}, defaulting to {DEFAULT_CHANNEL_VOLUME}.')
+                channel_volumes[msg.channel] = DEFAULT_CHANNEL_VOLUME
 
             note_volume = get_note_volume(msg.velocity, channel_volumes[msg.channel])
             if note_volume < volume_threshold:
@@ -87,8 +87,8 @@ def to_numpy(path: str):
                 beats_per_measure = 4
 
             ticks_per_measure = mid.ticks_per_beat * beats_per_measure
-            time_index = int(playback_ticks * _TICKS_PER_MEASURE / ticks_per_measure)
-            if time_index >= _TICKS_PER_SONG:
+            time_index = int(playback_ticks * TICKS_PER_MEASURE / ticks_per_measure)
+            if time_index >= TICKS_PER_SONG:
                 break
 
             note_index = msg.note
@@ -116,7 +116,7 @@ def play_numpy(data: np.ndarray):
 
         for time_index, note_index in notes:
             playback_time = time.time() - start_time
-            sleep_time = (time_index / _TICKS_PER_SECOND) - playback_time
+            sleep_time = (time_index / TICKS_PER_SECOND) - playback_time
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
