@@ -6,6 +6,7 @@ import mido
 import numpy as np
 from tqdm import tqdm
 
+import utils
 
 MEASURES_PER_SONG = 16
 TICKS_PER_MEASURE = 48
@@ -104,11 +105,7 @@ def to_numpy(mid: mido.MidiFile):
 
 def prepare_training_data() -> np.ndarray:
     # TODO: use sparse matrices instead?
-    filepaths = [
-        os.path.join(root, filename)
-        for root, _, filenames in os.walk('res')
-        for filename in filenames
-    ]
+    filepaths = utils.get_midi_filepaths()
 
     data = []
     for filepath in tqdm(filepaths):
