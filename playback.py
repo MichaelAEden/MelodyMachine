@@ -1,23 +1,11 @@
 import time
 
 import mido
-import pygame
-
-pygame.init()
 
 
-def play_pygame(path: str):
-    pygame.mixer.music.load(path)
-    pygame.mixer.music.play()
-
-    while pygame.mixer.music.get_busy():
-        pygame.time.wait(1000)
-
-
-def play_mido(path: str):
+def play_midi(mid: mido.MidiFile):
+    """Custom implementation of mido.MidiFile.play() which resolves timing issues."""
     with mido.open_output(autoreset=True) as port:
-        mid = mido.MidiFile(path)
-
         # TODO: submit PR to fix MidiFile.play().
         start_time = None
         input_time = 0.0
@@ -36,4 +24,3 @@ def play_mido(path: str):
 
             if not isinstance(msg, mido.MetaMessage):
                 port.send(msg)
-
