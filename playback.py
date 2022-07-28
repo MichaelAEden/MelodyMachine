@@ -1,6 +1,12 @@
 import time
 
 import mido
+import numpy as np
+
+from load_song import NOTE_MIN, TICKS_PER_MEASURE
+
+_SECONDS_PER_MEASURE = 5 / 3
+_TICKS_PER_SECOND = TICKS_PER_MEASURE / _SECONDS_PER_MEASURE
 
 
 def play_midi(mid: mido.MidiFile):
@@ -24,3 +30,23 @@ def play_midi(mid: mido.MidiFile):
 
             if not isinstance(msg, mido.MetaMessage):
                 port.send(msg)
+
+
+def play_numpy(data: np.ndarray):
+    # TODO: send Note Off messages.
+    with mido.open_output(autoreset=True) as port:
+        msg = mido.Message('program_change', program=0)
+        port.send(msg)
+
+        notes = np.transpose(np.nonzero(data.T))
+        start_time = time.time()
+
+        for time_index, note_index in notes:
+            playback_time = time.time() - start_time
+            sleep_time = (time_index / _TICKS_PER_SECOND) - playback_time
+
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+
+            msg = mido.Message('note_on', note=note_index + NOTE_MIN)
+            port.send(msg)

@@ -1,5 +1,4 @@
 import logging
-import time
 from collections import defaultdict
 
 import mido
@@ -15,8 +14,6 @@ NOTE_RANGE = NOTE_MAX - NOTE_MIN
 
 NOTE_VOLUME_PERCENTILE_THRESHOLD = 75  # Only allow notes with volume in top percentile.
 DEFAULT_CHANNEL_VOLUME = 127
-
-TICKS_PER_SECOND = 30  # Only used in playback.
 
 CHANNEL_PERCUSSION = 9  # 10 by MIDI standard but Mido uses 0-indexing.
 CONTROL_VOLUME = 7
@@ -44,9 +41,7 @@ def get_volume_threshold(mid: mido.MidiFile) -> float:
     return np.percentile(note_volumes, NOTE_VOLUME_PERCENTILE_THRESHOLD)
 
 
-def to_numpy(path: str):
-    mid = mido.MidiFile(path)
-
+def to_numpy(mid: mido.MidiFile):
     # Adapted from MidiFile.__iter__
     if mid.type == 2:
         raise TypeError('Cannot merge tracks in type 2 (asynchronous) file.')
@@ -105,21 +100,7 @@ def to_numpy(path: str):
     return data
 
 
-def play_numpy(data: np.ndarray):
-    # TODO: send Note Off messages.
-    with mido.open_output(autoreset=True) as port:
-        msg = mido.Message('program_change', program=0)
-        port.send(msg)
 
-        notes = np.transpose(np.nonzero(data.T))
-        start_time = time.time()
 
-        for time_index, note_index in notes:
-            playback_time = time.time() - start_time
-            sleep_time = (time_index / TICKS_PER_SECOND) - playback_time
-            if sleep_time > 0:
-                time.sleep(sleep_time)
 
-            msg = mido.Message('note_on', note=note_index + NOTE_MIN)
-            port.send(msg)
 
