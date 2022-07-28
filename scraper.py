@@ -41,5 +41,5 @@ def download(download_urls: List[str], output_path: str):
 
 
 if __name__ == '__main__':
-    download_urls = get_vgmusic_download_urls('/music/console/nintendo/nes/')
-    download(download_urls[:10], 'res/vgmusic/nes')
+    urls = get_vgmusic_download_urls('/music/console/nintendo/nes/')
+    download(urls, 'res/vgmusic/nes')
