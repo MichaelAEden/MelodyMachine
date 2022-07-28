@@ -1,8 +1,10 @@
 import logging
+import os
 from collections import defaultdict
 
 import mido
 import numpy as np
+from tqdm import tqdm
 
 
 MEASURES_PER_SONG = 16
@@ -100,7 +102,23 @@ def to_numpy(mid: mido.MidiFile):
     return data
 
 
+def prepare_training_data() -> np.ndarray:
+    # TODO: use sparse matrices instead?
+    filepaths = [
+        os.path.join(root, filename)
+        for root, _, filenames in os.walk('res')
+        for filename in filenames
+    ]
 
+    data = []
+    for filepath in tqdm(filepaths):
+        try:
+            mid = mido.MidiFile(filepath)
+            data.append(to_numpy(mid))
+        except Exception as e:
+            logging.error(f'Error occurred converting: {filepath}, {e}')
 
+    data = np.dstack(data)
+    return data
 
 
