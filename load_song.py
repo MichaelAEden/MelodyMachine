@@ -7,7 +7,7 @@ import numpy as np
 
 
 MEASURES_PER_SONG = 16
-TICKS_PER_MEASURE = 96
+TICKS_PER_MEASURE = 48
 TICKS_PER_SONG = TICKS_PER_MEASURE * MEASURES_PER_SONG
 NOTE_MIN = 20  # Inclusive
 NOTE_MAX = 96  # Not inclusive
@@ -16,7 +16,7 @@ NOTE_RANGE = NOTE_MAX - NOTE_MIN
 NOTE_VOLUME_PERCENTILE_THRESHOLD = 75  # Only allow notes with volume in top percentile.
 DEFAULT_CHANNEL_VOLUME = 127
 
-TICKS_PER_SECOND = 60  # Only used in playback.
+TICKS_PER_SECOND = 30  # Only used in playback.
 
 CHANNEL_PERCUSSION = 9  # 10 by MIDI standard but Mido uses 0-indexing.
 CONTROL_VOLUME = 7
