@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 
 import mido
 import numpy as np
@@ -21,29 +20,7 @@ CHANNEL_PERCUSSION = 9  # 10 by MIDI standard but Mido uses 0-indexing.
 CONTROL_VOLUME = 7
 
 
-def get_note_volume(velocity: int, channel_volume: int) -> float:
-    return (velocity / 127) * (channel_volume / 127)
-
-
-def get_volume_threshold(mid: mido.MidiFile) -> float:
-    note_volumes = []
-    channel_volumes = defaultdict(lambda: DEFAULT_CHANNEL_VOLUME)
-    for track in mid.tracks:
-        for msg in track:
-            if hasattr(msg, 'channel') and msg.channel == CHANNEL_PERCUSSION:
-                continue
-
-            if msg.type == 'control_change' and msg.control == CONTROL_VOLUME:
-                channel_volumes[msg.channel] = msg.value
-
-            if msg.type == 'note_on':
-                note_volume = get_note_volume(msg.velocity, channel_volumes[msg.channel])
-                note_volumes.append(note_volume)
-
-    return np.percentile(note_volumes, NOTE_VOLUME_PERCENTILE_THRESHOLD)
-
-
-def to_numpy(mid: mido.MidiFile):
+def to_pianoroll(mid: mido.MidiFile) -> np.ndarray:
     # Adapted from MidiFile.__iter__
     if mid.type == 2:
         raise TypeError('Cannot merge tracks in type 2 (asynchronous) file.')
@@ -51,9 +28,9 @@ def to_numpy(mid: mido.MidiFile):
     playback_ticks = 0
     beats_per_measure = None
     channel_volumes = {}
-    data = np.zeros((NOTE_RANGE, TICKS_PER_SONG))
 
-    volume_threshold = get_volume_threshold(mid)
+    # Dimensions are pitch, time, and channel respectively.
+    pianoroll = np.zeros((NOTE_RANGE, TICKS_PER_SONG, 16))
 
     for msg in utils.merge_tracks(mid):
         # Only consider time signature, but ignore tempo.
@@ -75,10 +52,6 @@ def to_numpy(mid: mido.MidiFile):
                 logging.warning(f'Unknown volume for channel: {msg.channel}, defaulting to {DEFAULT_CHANNEL_VOLUME}.')
                 channel_volumes[msg.channel] = DEFAULT_CHANNEL_VOLUME
 
-            note_volume = get_note_volume(msg.velocity, channel_volumes[msg.channel])
-            if note_volume < volume_threshold:
-                continue
-
             if beats_per_measure is None:
                 logging.warning('Unknown time signature, defaulting to 4/4.')
                 beats_per_measure = 4
@@ -97,9 +70,18 @@ def to_numpy(mid: mido.MidiFile):
                 logging.warning(f'Ignoring note in upper range: {note_index} >= {NOTE_MAX}.')
                 continue
 
-            data[note_index - NOTE_MIN, time_index] = 1
+            note_volume = (msg.velocity / 127) * (channel_volumes[msg.channel] / 127)
+            pianoroll[note_index - NOTE_MIN, time_index, msg.channel] = note_volume
 
-    return data
+    # Flatten by summing note volumes over channels.
+    pianoroll = np.sum(pianoroll, axis=2)
+
+    # Round up loudest notes to 1, round down all other notes to 0.
+    pianoroll[pianoroll == 0] = np.nan
+    volume_threshold = np.nanpercentile(pianoroll, NOTE_VOLUME_PERCENTILE_THRESHOLD)
+    pianoroll = (pianoroll >= volume_threshold).astype(np.int32)
+
+    return pianoroll
 
 
 def prepare_training_data() -> np.ndarray:
@@ -110,7 +92,7 @@ def prepare_training_data() -> np.ndarray:
     for filepath in tqdm(filepaths):
         try:
             mid = mido.MidiFile(filepath)
-            data.append(to_numpy(mid))
+            data.append(to_pianoroll(mid))
         except Exception as e:
             logging.error(f'Error occurred converting: {filepath}, {e}')
 
