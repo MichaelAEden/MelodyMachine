@@ -10,6 +10,7 @@ def get_midi_filepaths() -> List[str]:
         os.path.join(root, filename)
         for root, _, filenames in os.walk('res')
         for filename in filenames
+        if filename.endswith('.mid')
     ]
 
 
